@@ -7,17 +7,13 @@ const { Server } = require("socket.io");
 
 const app = express();
 const port = process.env.PORT || 5000;
-
-// Create an HTTP server with the Express app
 const server = http.createServer(app);
 
-// Middlewares:
 app.use(cors());
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.hwapsgs.mongodb.net/?retryWrites=true&w=majority`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -28,14 +24,11 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server (optional starting in v4.7)
     await client.connect();
 
-    // Select the database and collection
     const db = client.db("chatApp");
     const messagesCollection = db.collection("messages");
 
-    // Initialize Socket.IO server with the HTTP server instance
     const io = new Server(server, {
       cors: {
         origin: "http://localhost:3000",
@@ -43,66 +36,77 @@ async function run() {
       },
     });
 
+    const users = {};
+
     io.on("connection", (socket) => {
       console.log("A user connected:", socket.id);
 
-      // Listen for incoming messages
-      socket.on("message", async (msg) => {
-        console.log("Received message:", msg);
-        // Broadcast the message to all clients, including the sender
-        io.emit("message", msg);
+      socket.on("register", (userId) => {
+        users[userId] = socket.id;
+        console.log(`${userId} registered with socket id: ${socket.id}`);
+      });
+
+      // Listen for broadcast messages (to all users including the sender)
+      socket.on("broadcast_message", async (msg) => {
+        io.emit("message", { msg, from: "Broadcast" });
+        console.log(`Broadcast message: ${msg}`);
+
         // Save the message to MongoDB
         const messageDocument = {
           message: msg,
-          timestamp: new Date(), // Record the time the message was sent
-          userId: socket.id, // Optionally store the user id (socket id)
+          timestamp: new Date(),
+          userId: socket.id,
         };
         await messagesCollection.insertOne(messageDocument);
       });
 
+      // Listen for private messages
+      socket.on("private_message", ({ to, message }) => {
+        const targetSocketId = users[to];
+        if (targetSocketId) {
+          io.to(targetSocketId).emit("message", { message, from: "Private" });
+          console.log(
+            `Sent private message from ${socket.id} to ${targetSocketId}: ${message}`
+          );
+        } else {
+          console.log(`User ${to} is not connected`);
+        }
+      });
+
       socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
+
+        // Remove the user from the users object
+        for (const userId in users) {
+          if (users[userId] === socket.id) {
+            delete users[userId];
+            break;
+          }
+        }
       });
     });
 
-    // get message from client side:
+    // Endpoint to get messages from the database
     app.get("/api/messages", async (req, res) => {
       try {
-        const messages = await db.collection("messages").find().toArray();
+        const messages = await messagesCollection.find().toArray();
         res.json(messages);
       } catch (error) {
         res.status(500).json({ error: "Failed to fetch messages" });
       }
     });
-    // app.get("/api/messages", async (req, res) => {
-    //   try {
-    //     const messagesCollection = client.db("chatApp").collection("messages");
-    //     const messages = await messagesCollection
-    //       .find()
-    //       .sort({ timestamp: 1 })
-    //       .toArray();
-    //     res.status(200).json(messages);
-    //   } catch (error) {
-    //     console.error("Failed to retrieve messages:", error);
-    //     res.status(500).json({ error: "Failed to retrieve messages" });
-    //   }
-    // });
 
-    // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
   } catch (error) {
     console.error("An error occurred while connecting to MongoDB:", error);
-  } finally {
-    // The client is not closed here so the connection remains active for the server.
-    // await client.close(); // Commented out to keep the connection open
   }
 }
+
 run().catch(console.dir);
 
-// Server start:
 app.get("/", (req, res) => {
   res.send("Socket.IO server is running");
 });
