@@ -48,8 +48,9 @@ async function run() {
 
       // Listen for broadcast messages (to all users including the sender)
       socket.on("broadcast_message", async (msg) => {
-        io.emit("message", { msg, from: "Broadcast" });
-        console.log(`Broadcast message: ${msg}`);
+        // Emit the message to all connected clients
+        console.log(msg);
+        io.emit("message", msg);
 
         // Save the message to MongoDB
         const messageDocument = {
@@ -61,17 +62,17 @@ async function run() {
       });
 
       // Listen for private messages
-      socket.on("private_message", ({ to, message }) => {
-        const targetSocketId = users[to];
-        if (targetSocketId) {
-          io.to(targetSocketId).emit("message", { message, from: "Private" });
-          console.log(
-            `Sent private message from ${socket.id} to ${targetSocketId}: ${message}`
-          );
-        } else {
-          console.log(`User ${to} is not connected`);
-        }
-      });
+      // socket.on("private_message", ({ to, message }) => {
+      //   const targetSocketId = users[to];
+      //   if (targetSocketId) {
+      //     io.to(targetSocketId).emit("message", { message, from: "Private" });
+      //     console.log(
+      //       `Sent private message from ${socket.id} to ${targetSocketId}: ${message}`
+      //     );
+      //   } else {
+      //     console.log(`User ${to} is not connected`);
+      //   }
+      // });
 
       socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
