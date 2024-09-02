@@ -50,8 +50,8 @@ async function run() {
       socket.on("broadcast_message", async (msg) => {
         // Emit the message to all connected clients
         console.log(msg);
-        io.emit("message", msg);
-
+        // io.emit("message", msg);
+        socket.broadcast.emit("message", msg);
         // Save the message to MongoDB
         const messageDocument = {
           message: msg,
