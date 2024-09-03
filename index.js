@@ -11,28 +11,25 @@ const port = process.env.PORT || 5000;
 const server = http.createServer(app);
 
 // create directory for save the upload image:
-const fs = require('fs');
+const fs = require("fs");
 
-const uploadDir = path.join(__dirname, 'public', 'uploads');
+const uploadDir = path.join(__dirname, "public", "uploads");
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-
-
-
 // Set up storage with destination and filename configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     // Save files in the public/uploads directory
-    cb(null, path.join(__dirname, 'public', 'uploads'));
+    cb(null, path.join(__dirname, "public", "uploads"));
   },
   filename: function (req, file, cb) {
     // Use a unique filename with the original file extension
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+  },
 });
 
 // Initialize upload middleware
@@ -129,38 +126,41 @@ async function run() {
       }
     });
 
-  // Handle user registration with image upload
-app.post("/api/users", upload.single("avatar"), async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    let avatarUrl = null;
-    
-    // Check if a file is uploaded and construct the avatar URL
-    if (req.file) {
-      avatarUrl = `/uploads/${req.file.filename}`;
-    }
+    // Handle user registration with image upload
+    app.post("/api/users", upload.single("avatar"), async (req, res) => {
+      try {
+        const { name, email, password } = req.body;
+        let avatarUrl = null;
 
-    // Create a user object to be inserted into the database
-    const user = {
-      name,
-      email,
-      password, // Note: In production, hash the password before storing!
-      avatarUrl,
-    };
+        // Check if a file is uploaded and construct the avatar URL
+        if (req.file) {
+          avatarUrl = `/uploads/${req.file.filename}`;
+        }
 
-    // Insert the user into the database
-    const result = await usersCollection.insertOne(user);
+        // Create a user object to be inserted into the database
+        const user = {
+          name,
+          email,
+          password, // Note: In production, hash the password before storing!
+          avatarUrl,
+        };
 
-    // Send a response once after successfully saving the user
-    res.status(201).json({ success: true, userId: result.insertedId, file: req.file });
-  } catch (error) {
-    console.error("Error saving user:", error);
-    
-    // Send an error response if something goes wrong
-    res.status(500).json({ success: false, error: "Internal Server Error" });
-  }
-});
+        // Insert the user into the database
+        const result = await usersCollection.insertOne(user);
 
+        // Send a response once after successfully saving the user
+        res
+          .status(201)
+          .json({ success: true, userId: result.insertedId, file: req.file });
+      } catch (error) {
+        console.error("Error saving user:", error);
+
+        // Send an error response if something goes wrong
+        res
+          .status(500)
+          .json({ success: false, error: "Internal Server Error" });
+      }
+    });
 
     // Serve the uploaded images statically
     app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
@@ -172,7 +172,9 @@ app.post("/api/users", upload.single("avatar"), async (req, res) => {
     });
 
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } catch (error) {
     console.error("An error occurred while connecting to MongoDB:", error);
   }
