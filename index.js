@@ -1,7 +1,7 @@
 const express = require("express");
-const multer = require("multer");
+const multer = require("multer"); //for image upload
 const cors = require("cors");
-const path = require("path"); // Import the path module
+const path = require("path"); // Import the path module for file upload.
 require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const http = require("http");
@@ -12,13 +12,10 @@ const server = http.createServer(app);
 
 // create directory for save the upload image:
 const fs = require("fs");
-
 const uploadDir = path.join(__dirname, "public", "uploads");
-
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-
 // Set up storage with destination and filename configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -72,12 +69,12 @@ async function run() {
 
       socket.on("register", (userId) => {
         users[userId] = socket.id;
-        console.log(`${userId} registered with socket id: ${socket.id}`);
+        // console.log(`${userId} registered with socket id: ${socket.id}`);
       });
 
       // Listen for broadcast messages (to all users including the sender)
       socket.on("broadcast_message", async (msg) => {
-        console.log(msg);
+        // console.log(msg);
         socket.broadcast.emit("message", msg);
 
         const messageDocument = {
@@ -88,23 +85,30 @@ async function run() {
         await messagesCollection.insertOne(messageDocument);
       });
 
-      // Listen for private messages
-      socket.on("private_message", ({ to, message }) => {
-        const targetSocketId = users[to];
-        if (targetSocketId) {
-          socket
-            .to(targetSocketId)
-            .emit("message", { message, from: socket.id });
+      // Handle sending private messages
+      socket.on("sendMessage", async (receiverId, message) => {
+        const receiverSocketId = users[receiverId];
+        if (receiverSocketId) {
+          io.to(receiverSocketId).emit("receiveMessage", message);
+
+          // Save the message to the database
+          const messageDocument = {
+            message,
+            timestamp: new Date(),
+            senderId: socket.id,
+            receiverId,
+          };
+          await messagesCollection.insertOne(messageDocument);
           console.log(
-            `Sent private message from ${socket.id} to ${targetSocketId}: ${message}`
+            `Message sent from ${socket.id} to ${receiverId}: ${message}`
           );
         } else {
-          console.log(`User ${to} is not connected`);
+          console.log(`User ${receiverId} is not connected`);
         }
       });
 
       socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id);
+        // console.log("User disconnected:", socket.id);
 
         // Remove the user from the users object
         for (const userId in users) {
@@ -141,19 +145,19 @@ async function run() {
         const user = {
           name,
           email,
-          password, // Note: In production, hash the password before storing!
+          password,
           avatarUrl,
         };
 
         // Insert the user into the database
         const result = await usersCollection.insertOne(user);
-
+        const registerUserId = result.insertedId;
+        // console.log(registerUserId);
         // Send a response once after successfully saving the user
-        res
-          .status(201)
-          .json({ success: true, userId: result.insertedId, file: req.file });
+        res.status(201).json({ success: true, registerUserId, file: req.file });
+        // .json({ success: true, userId: result.insertedId, file: req.file });
       } catch (error) {
-        console.error("Error saving user:", error);
+        // console.error("Error saving user:", error);
 
         // Send an error response if something goes wrong
         res
