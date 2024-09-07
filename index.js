@@ -135,7 +135,7 @@ async function run() {
         const users = await usersCollection
           .find({ _id: { $ne: objectId } })
           .toArray();
-
+ 
         const userWithLastMessage = await Promise.all(
           users.map(async (user) => {
             const lastMessage = await messagesCollection.findOne(
